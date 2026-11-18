@@ -5,7 +5,7 @@
 <title>Importação e Exportação | Auto Visão</title>
 <link rel="stylesheet" href="/design-system.css">
 <style>
-*{box-sizing:border-box}body{margin:0}main{padding:24px}h1{margin:16px 0}.transfer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.transfer-card{background:white;border:1px solid var(--av-line);border-radius:12px;padding:18px;min-width:0}.transfer-card h2{font-size:20px;margin:0 0 12px}.transfer-card form{display:grid;gap:12px}.transfer-card input,.transfer-card button{padding:10px;min-height:42px;border:1px solid var(--av-line);border-radius:8px;max-width:100%;background:white}.transfer-card button{cursor:pointer;font-weight:800}.transfer-card button.primary{background:var(--av-red);color:white;border-color:var(--av-red)}.transfer-card button:disabled{opacity:.6;cursor:wait}.transfer-card label{display:grid;gap:6px}.transfer-card p{color:var(--av-gray);font-size:14px}.transfer-card ul{padding-left:20px;font-size:14px;line-height:1.8}.transfer-card .result{white-space:pre-wrap;color:var(--av-graphite);font-size:14px}.transfer-card details{margin-top:18px}progress{width:100%;height:14px}.audit{margin-top:20px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--av-line);white-space:nowrap}th{background:#eee}.download{display:inline-block;margin:12px 0;font-weight:800;color:#155ab5}@media(max-width:820px){main{padding:14px}.transfer-grid{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0}main{padding:24px}h1{margin:16px 0}.transfer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.transfer-card{background:white;border:1px solid var(--av-line);border-radius:12px;padding:18px;min-width:0}.transfer-card h2{font-size:20px;margin:0 0 12px}.transfer-card form{display:grid;gap:12px}.transfer-card input,.transfer-card button{padding:10px;min-height:42px;border:1px solid var(--av-line);border-radius:8px;max-width:100%;background:white}.transfer-card button{cursor:pointer;font-weight:800}.transfer-card button.primary{background:var(--av-red);color:white;border-color:var(--av-red)}.transfer-card button:disabled{opacity:.6;cursor:wait}.transfer-card label{display:grid;gap:6px}.transfer-card p{color:var(--av-gray);font-size:14px}.transfer-card ul{padding-left:20px;font-size:14px;line-height:1.8}.transfer-card .result{white-space:pre-wrap;color:var(--av-graphite);font-size:14px}.transfer-card details{margin-top:18px}progress{width:100%;height:14px}.audit{margin-top:20px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--av-line);white-space:nowrap}th{background:#eee}.download:not([hidden]){display:inline-block;margin:12px 0;font-weight:800;color:#155ab5}@media(max-width:820px){main{padding:14px}.transfer-grid{grid-template-columns:1fr}}
 </style>
 <main>
 <nav class="view-nav" aria-label="Visões do BI">
@@ -64,7 +64,7 @@ async function metadata(){
   const data=await response.json();
   document.querySelector('#importacao').hidden=!data.administrador;
   document.querySelector('#periodo-exportacao').textContent='Carteiras e Speed de '+date(data.inicio)+' a '+date(data.corte)+'. '+data.total+' PDFs previstos.';
-  generate.disabled=false;
+  generate.disabled=!!localStorage.getItem('bi-exportacao');
   if(data.administrador)await history();
 }
 async function history(){
