@@ -88,7 +88,7 @@ def comparison_page(db, query, can_import=False):
     td:first-child,th:first-child{text-align:left}thead{background:#252525;color:white}
     tbody tr:nth-child(even){background:#f4f4f4}tbody tr:first-child{font-weight:bold;background:#fbe8e8}
     </style></head><body><main><nav class="view-nav" aria-label="Visões do BI">
-    <a href="/">Visão Geral</a><a href="/realizado-meta" aria-current="page">Realizado × Meta</a><a href="/transferencias">Import/Export</a>
+    <a href="/">Visão Geral</a><a href="/transferencias">Import/Export</a>
     </nav><h1>Realizado × Meta</h1>"""
     footer = "</main></body></html>"
     exists = db.execute(
