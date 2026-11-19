@@ -109,7 +109,7 @@ def sales_joins(db):
     return joins, detailed_clients
 
 
-def dashboard(db, query):
+def dashboard(db, query, *, prorate_targets=True):
     joins, detailed_clients = sales_joins(db)
     first, latest = db.execute(
         "SELECT MIN(data_emissao), MAX(data_emissao) FROM fato_item_orcamento"
@@ -205,7 +205,7 @@ def dashboard(db, query):
                      if month <= end.month]
     target_weights = {month: 1.0 for month in target_months}
     target_days = []
-    for end, _ in spans:
+    for end, _ in (spans if prorate_targets else []):
         last = date(end.year, end.month, calendar.monthrange(end.year, end.month)[1])
         if end < last:
             elapsed, full = db.execute(
@@ -640,7 +640,8 @@ def speed_report(db, query):
     }
     filters = {key: [value] for key, value in selected.items()}
     filters.update(ano=[end[:4]], mes=[end[5:7]])
-    target = dashboard(db, filters)["meta"]
+    # Speed já projeta o realizado até o fim do mês e compara com a meta mensal integral.
+    target = dashboard(db, filters, prorate_targets=False)["meta"]
     report["speed"]["metas"] = (
         [target["quantidade"], target["preco"], target["receita"]]
         if target else [None, None, None]
