@@ -807,8 +807,8 @@ class Handler(BaseHTTPRequestHandler):
                     total = 0
                     while chunk := uploaded.read(1 << 20):
                         total += len(chunk)
-                        if total > 128 * 1024 ** 2:
-                            raise ValueError("base descompactada excede 128 MB")
+                        if total > 512 * 1024 ** 2:
+                            raise ValueError("base descompactada excede 512 MB")
                         expanded.write(chunk)
                     expanded.seek(0)
                     with open(temp, "wb") as out:
