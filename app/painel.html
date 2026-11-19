@@ -164,7 +164,7 @@ button.bar:hover,button.bar[aria-pressed=true]{background:var(--av-red-soft)}.ba
 const form = document.querySelector('#filtros');
 const statusLine = document.querySelector('#status');
 const money = new Intl.NumberFormat('pt-BR', {style:'currency',currency:'BRL'});
-const integer = new Intl.NumberFormat('pt-BR');
+const integer = new Intl.NumberFormat('pt-BR', {maximumFractionDigits:0});
 const compact = new Intl.NumberFormat('pt-BR', {notation:'compact'});
 const date = value => value.split('-').reverse().join('/');
 const months = new Intl.DateTimeFormat('pt-BR',{month:'long',timeZone:'UTC'});
