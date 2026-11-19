@@ -323,8 +323,15 @@ def dashboard(db, query):
                 "SELECT u.nome,m.ano_mes FROM metas.meta_cobertura_mensal m "
                 "JOIN dim_unidade u ON u.id_erp=m.id_unidade"
             ))
+        exempt = set()
+        if db.execute("SELECT 1 FROM metas.sqlite_master WHERE type='table' AND name='meta_sem_meta_mensal'").fetchone():
+            exempt = set(db.execute(
+                "SELECT u.nome,m.ano_mes FROM metas.meta_sem_meta_mensal m "
+                "JOIN dim_unidade u ON u.id_erp=m.id_unidade"
+            ))
         covered = bool(units and target_months) and all(
-            (unit, month) in coverage for unit in units for month in target_months
+            (unit, month) in coverage or (not query.get('unidade') and (unit, month) in exempt)
+            for unit in units for month in target_months
         )
         target = {"quantidade": None, "receita": None, "preco": None}
         evolution_targets = []
@@ -355,6 +362,8 @@ def dashboard(db, query):
                 ).fetchall()
                 by_name = {name: (quantity, revenue) for name, quantity, revenue in rows}
                 for name, _, _ in ranking(DIMENSIONS[dimension]):
+                    if dimension == 'unidade' and all((name, month) in exempt for month in target_months):
+                        continue
                     by_name.setdefault(name, (0, 0))
                 ranking_targets[key] = [[name, *amounts] for name, amounts in by_name.items()]
     return {

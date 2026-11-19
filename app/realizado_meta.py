@@ -22,6 +22,14 @@ def validate_target_database(db):
         seen.add(key)
     if not seen:
         raise ValueError("arquivo de metas vazio")
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta_sem_meta_mensal'").fetchone():
+        for month, unit, reason in db.execute('SELECT ano_mes,id_unidade,motivo FROM meta_sem_meta_mensal'):
+            if (not isinstance(month, str) or date.fromisoformat(month + '-01').isoformat()[:7] != month
+                    or not isinstance(unit, str) or not unit.strip()
+                    or not isinstance(reason, str) or not reason.strip()):
+                raise ValueError('declaração de unidade sem meta inválida')
+            if db.execute('SELECT 1 FROM meta_produto_vistoriador WHERE ano_mes=? AND id_unidade=?', (month, unit)).fetchone():
+                raise ValueError('unidade declarada sem meta possui metas no período')
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta_cobertura_mensal'").fetchone():
         for month, unit, quantity, revenue in db.execute(
             'SELECT ano_mes,id_unidade,quantidade,faturamento_centavos FROM meta_cobertura_mensal'
