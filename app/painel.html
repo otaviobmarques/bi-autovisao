@@ -283,7 +283,7 @@ function cards(data) {
   const targets=[data.meta.receita,data.meta.preco,data.meta.quantidade];
   targetRow.replaceChildren(...names.map((name,i)=>
     metricCard(name,i,targets[i]===null || i===2?targets[i]:targets[i]/100,
-      'Realizado vs. meta','Meta do período','Meta indisponível para o recorte.',true)));
+      'Realizado vs. meta',data.meta_referencia || 'Meta do período','Meta indisponível para o recorte.',true)));
 }
 let rankingData;
 const rankingModes={};

@@ -203,6 +203,28 @@ def dashboard(db, query):
     active_dimensions = [key for key in DIMENSIONS if query.get(key)]
     target_months = [f"{end.year:04}-{month:02}" for end, _ in spans for month in months
                      if month <= end.month]
+    target_weights = {month: 1.0 for month in target_months}
+    target_days = []
+    for end, _ in spans:
+        last = date(end.year, end.month, calendar.monthrange(end.year, end.month)[1])
+        if end < last:
+            elapsed, full = db.execute(
+                "SELECT COALESCE(SUM(CASE WHEN data<=? THEN dia_util ELSE 0 END),0),"
+                "COALESCE(SUM(dia_util),0) FROM dim_calendario_campinas WHERE data BETWEEN ? AND ?",
+                (end.isoformat(), end.replace(day=1).isoformat(), last.isoformat()),
+            ).fetchone()
+            if not full:
+                raise ValueError('Calendário de dias úteis indisponível para a meta.')
+            target_weights[end.strftime('%Y-%m')] = elapsed / full
+            target_days.append({'corte': end.isoformat(), 'decorridos': elapsed, 'mes': full})
+
+    def target_factor(column):
+        cases = ''.join(f" WHEN '{month}' THEN {weight!r}" for month, weight in target_weights.items() if weight != 1)
+        return f'(CASE {column}{cases} ELSE 1 END)' if cases else '1'
+
+    def weighted_months(rows):
+        return {month: (quantity * target_weights[month], revenue * target_weights[month])
+                for month, quantity, revenue in rows}
     if not active_dimensions or active_dimensions in (["unidade"], ["vendedor"]):
         target = {"quantidade": None, "receita": None, "preco": None}
         if target_months and db.execute(
@@ -240,6 +262,7 @@ def dashboard(db, query):
             or not all(month in monthly_targets for month in target_months)
         ):
             monthly_targets = detailed_targets
+    monthly_targets = weighted_months((month, *amounts) for month, amounts in monthly_targets.items())
     if target_months and all(month in monthly_targets for month in target_months):
         quantity = sum(monthly_targets[month][0] for month in target_months)
         revenue = sum(monthly_targets[month][1] for month in target_months)
@@ -269,7 +292,8 @@ def dashboard(db, query):
             ).fetchone():
                 condition = " AND nome=?" if query.get(dimension) else ""
                 rows = db.execute(
-                    f"""SELECT nome, SUM(quantidade), SUM(quantidade*preco_medio_centavos)
+                    f"""SELECT nome, SUM(quantidade*{target_factor('ano_mes')}),
+                    SUM(quantidade*preco_medio_centavos*{target_factor('ano_mes')})
                     FROM meta_mensal WHERE nivel=? AND ano_mes IN ({placeholders}){condition}
                     GROUP BY nome HAVING COUNT(DISTINCT ano_mes)=?""",
                     [dimension, *target_months, *query.get(dimension, [])[:1], len(target_months)],
@@ -279,7 +303,8 @@ def dashboard(db, query):
                 if attached or attach_targets(db):
                     conditions = "".join(f" AND {column}=?" for column, _ in filters)
                     detailed = db.execute(
-                        f"""SELECT {DIMENSIONS[dimension]}, SUM(m.quantidade), SUM(m.faturamento_centavos)
+                        f"""SELECT {DIMENSIONS[dimension]}, SUM(m.quantidade*{target_factor('m.ano_mes')}),
+                        SUM(m.faturamento_centavos*{target_factor('m.ano_mes')})
                         FROM metas.meta_produto_vistoriador m
                         JOIN dim_unidade u ON u.id_erp=m.id_unidade
                         JOIN dim_servico s ON s.id_erp=m.id_servico
@@ -341,10 +366,10 @@ def dashboard(db, query):
             conditions = "".join(f" AND {column}=?" for column, _ in filters)
             target_where = f" WHERE m.ano_mes IN ({placeholders}){conditions}"
             parameters = [*target_months, *values]
-            monthly = {month: (quantity / 1000000, revenue) for month, quantity, revenue in db.execute(
+            monthly = weighted_months((month, quantity / 1000000, revenue) for month, quantity, revenue in db.execute(
                 f"SELECT m.ano_mes,SUM(m.quantidade_milionesimos),SUM(m.faturamento_centavos) "
                 f"{target_joins}{target_where} GROUP BY 1", parameters
-            )}
+            ))
             quantity = sum(row[0] for row in monthly.values())
             revenue = sum(row[1] for row in monthly.values())
             target = {"quantidade": quantity, "receita": revenue,
@@ -356,8 +381,8 @@ def dashboard(db, query):
             ]
             for key, dimension in ranking_dimensions.items():
                 rows = db.execute(
-                    f"SELECT {DIMENSIONS[dimension]},SUM(m.quantidade_milionesimos)/1000000.0,"
-                    f"SUM(m.faturamento_centavos) {target_joins}{target_where} GROUP BY 1",
+                    f"SELECT {DIMENSIONS[dimension]},SUM(m.quantidade_milionesimos*{target_factor('m.ano_mes')})/1000000.0,"
+                    f"SUM(m.faturamento_centavos*{target_factor('m.ano_mes')}) {target_joins}{target_where} GROUP BY 1",
                     parameters,
                 ).fetchall()
                 by_name = {name: (quantity, revenue) for name, quantity, revenue in rows}
@@ -369,6 +394,9 @@ def dashboard(db, query):
     return {
         "anos": available_years, "opcoes": options,
         "meta": target,
+        "meta_dias_uteis": target_days,
+        "meta_referencia": ('Meta até ' + spans[0][0].strftime('%d/%m/%Y') if len(spans) == 1
+                            else 'Meta até as datas de corte'),
         "atual": totals(0), "anterior": totals(1),
         "recorte": any(query.get(key) for key in ("mes", "trimestre", "semestre")),
         "cortes": [[current.isoformat(), prior.isoformat()] for current, prior in spans],
