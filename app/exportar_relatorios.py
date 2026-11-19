@@ -159,6 +159,46 @@ class Exports:
                                 endpoint = '/api/vistoriadores' if report['tipo'] == 'vistoriadores' else '/api/gerencial'
                         current_data.clear()
                         current_data[endpoint] = payload
+                        if report['tipo'] == 'gerencial':
+                            with closing(database()) as db:
+                                joins, _ = api.sales_joins(db)
+                                units = [row[0] for row in db.execute(
+                                    f"SELECT DISTINCT {api.DIMENSIONS['unidade']} {joins} "
+                                    "WHERE f.data_emissao BETWEEN ? AND ? AND u.id_erp NOT LIKE 'historico:%' ORDER BY 1",
+                                    (plan['corte'][:4] + '-01-01', plan['corte']),
+                                )]
+                            sections = []
+                            for unit in [None, *units]:
+                                title = 'Consolidado' if unit is None else unit
+                                self.update(job, atual='Visão Gerencial · ' + title)
+                                if unit is not None:
+                                    with closing(database()) as db:
+                                        current_data[endpoint] = api.management_report(
+                                            db, {'ano': [plan['corte'][:4]], 'unidade': [unit]}, cutoff=plan['corte']
+                                        )
+                                page.goto(base_url + report['url'], wait_until='networkidle', timeout=60000)
+                                page.wait_for_selector('#print:not([disabled])', state='attached', timeout=60000)
+                                page.evaluate('document.fonts.ready')
+                                sections.append(page.locator('main').evaluate('''(node, title) => {
+                                    node.querySelector('h1').textContent = 'Visão Gerencial · ' + title;
+                                    const printTitle = node.querySelector('.av-ph-report strong');
+                                    if (printTitle) printTitle.textContent = 'Visão Gerencial · ' + title;
+                                    return node.outerHTML;
+                                }''', title))
+                            page.evaluate('(sections) => { document.body.innerHTML = sections.join(""); }', sections)
+                            page.add_style_tag(content='@media print { main { counter-reset: av-secao; } main + main { break-before: page; } }')
+                            page.evaluate('''() => window.addEventListener('beforeprint', () => {
+                                document.querySelectorAll('main').forEach(section => {
+                                    section.querySelector('[data-av-print-title]').textContent = section.querySelector('h1').textContent;
+                                });
+                            })''')
+                            page.evaluate('document.fonts.ready')
+                            output = folder / report['arquivo']
+                            output.parent.mkdir(exist_ok=True)
+                            page.pdf(path=str(output), format='A4', landscape=True, print_background=True,
+                                     prefer_css_page_size=True)
+                            self.update(job, concluidos=job['concluidos'] + 1)
+                            continue
                         page.goto(base_url + report['url'], wait_until='networkidle', timeout=60000)
                         ready = '#imprimir' if report['tipo'] in ('cliente', 'speed') else '#print'
                         page.wait_for_selector(ready + ':not([disabled])', state='attached', timeout=60000)
