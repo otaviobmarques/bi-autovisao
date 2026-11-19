@@ -154,8 +154,12 @@ class Exports:
                                 payload = api.speed_report(db, query)
                                 endpoint = '/api/speed'
                             else:
-                                payload = api.management_report(db, {'ano': [plan['corte'][:4]]},
-                                                                inspectors=report['tipo'] == 'vistoriadores')
+                                management_query = {'ano': [plan['corte'][:4]]}
+                                if report['tipo'] == 'vistoriadores':
+                                    management_query['mes'] = [plan['corte'][5:7]]
+                                payload = api.management_report(db, management_query,
+                                                                inspectors=report['tipo'] == 'vistoriadores',
+                                                                cutoff=plan['corte'])
                                 endpoint = '/api/vistoriadores' if report['tipo'] == 'vistoriadores' else '/api/gerencial'
                         current_data.clear()
                         current_data[endpoint] = payload
@@ -204,6 +208,11 @@ class Exports:
                         page.wait_for_selector(ready + ':not([disabled])', state='attached', timeout=60000)
                         if report['tipo'] in ('cliente', 'speed'):
                             page.locator('#executivo').evaluate('(node) => { node.open = true; }')
+                        if report['tipo'] == 'vistoriadores':
+                            page.locator('main').evaluate('''(node, cutoff) => {
+                                node.querySelector('h1').textContent = 'Visão por Vistoriadores · ' + cutoff.slice(5,7) + '/' + cutoff.slice(0,4);
+                                node.querySelector('#stats').textContent = 'Mês de referência · até ' + cutoff.split('-').reverse().join('/');
+                            }''', plan['corte'])
                         page.evaluate('document.fonts.ready')
                         output = folder / report['arquivo']
                         output.parent.mkdir(exist_ok=True)
