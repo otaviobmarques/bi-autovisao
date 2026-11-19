@@ -304,6 +304,9 @@ def dashboard(db, query):
         unit_conditions = " OR ".join("f.data_emissao BETWEEN ? AND ?" for _ in spans)
         unit_values = [value for end, _ in spans for value in (f"{end.year}-01-01", end.isoformat())]
         unit_filter = " AND " + DIMENSIONS["unidade"] + "=?" if query.get("unidade") else ""
+        # Registros legados sem unidade identificada não representam uma loja com meta pendente.
+        if not query.get("unidade"):
+            unit_filter = " AND u.id_erp NOT LIKE 'historico:%'"
         units = [row[0] for row in db.execute(
             f"SELECT DISTINCT {DIMENSIONS['unidade']} {joins} "
             f"WHERE ({unit_conditions or '0'}){unit_filter}",
@@ -315,6 +318,11 @@ def dashboard(db, query):
             f"SELECT DISTINCT {DIMENSIONS['unidade']}, m.ano_mes "
             "FROM metas.meta_produto_vistoriador m JOIN dim_unidade u ON u.id_erp=m.id_unidade"
         ))
+        if db.execute("SELECT 1 FROM metas.sqlite_master WHERE type='table' AND name='meta_cobertura_mensal'").fetchone():
+            coverage.update(db.execute(
+                "SELECT u.nome,m.ano_mes FROM metas.meta_cobertura_mensal m "
+                "JOIN dim_unidade u ON u.id_erp=m.id_unidade"
+            ))
         covered = bool(units and target_months) and all(
             (unit, month) in coverage for unit in units for month in target_months
         )

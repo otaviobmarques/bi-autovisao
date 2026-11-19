@@ -22,6 +22,21 @@ def validate_target_database(db):
         seen.add(key)
     if not seen:
         raise ValueError("arquivo de metas vazio")
+    if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta_cobertura_mensal'").fetchone():
+        for month, unit, quantity, revenue in db.execute(
+            'SELECT ano_mes,id_unidade,quantidade,faturamento_centavos FROM meta_cobertura_mensal'
+        ):
+            if (not isinstance(month, str) or date.fromisoformat(month + '-01').isoformat()[:7] != month
+                    or not isinstance(unit, str) or not unit.strip()
+                    or type(quantity) is not int or quantity < 0
+                    or type(revenue) is not int or revenue < 0):
+                raise ValueError('cobertura mensal inválida')
+            total = db.execute(
+                'SELECT COALESCE(SUM(quantidade),0),COALESCE(SUM(faturamento_centavos),0) '
+                'FROM meta_produto_vistoriador WHERE ano_mes=? AND id_unidade=?', (month, unit)
+            ).fetchone()
+            if total != (quantity, revenue) or (quantity == 0 and revenue != 0):
+                raise ValueError('cobertura mensal não reconcilia com as metas')
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta_cliente'").fetchone():
         invalid = db.execute("""
             SELECT 1 FROM meta_cliente
