@@ -1,6 +1,16 @@
 from collections import defaultdict
 from html import escape
 from datetime import date
+from decimal import Decimal
+
+
+def quantity_micros(value):
+    if type(value) not in (int, float):
+        raise ValueError('quantidade inválida')
+    scaled = Decimal(str(value)) * 1000000
+    if not scaled.is_finite() or scaled < 0 or scaled != scaled.to_integral_value():
+        raise ValueError('quantidade deve ser positiva e ter até seis casas decimais')
+    return int(scaled)
 
 
 def validate_target_database(db):
@@ -14,7 +24,7 @@ def validate_target_database(db):
             raise ValueError("mês inválido")
         if any(not isinstance(value, str) or not value.strip() for value in (unit, service, inspector)):
             raise ValueError("identificador inválido")
-        if type(quantity) is not int or quantity <= 0 or type(revenue) is not int or revenue < 0:
+        if quantity_micros(quantity) <= 0 or type(revenue) is not int or revenue < 0:
             raise ValueError("quantidade ou faturamento inválido")
         key = (month, unit, service, inspector)
         if key in seen:
@@ -36,14 +46,14 @@ def validate_target_database(db):
         ):
             if (not isinstance(month, str) or date.fromisoformat(month + '-01').isoformat()[:7] != month
                     or not isinstance(unit, str) or not unit.strip()
-                    or type(quantity) is not int or quantity < 0
+                    or quantity_micros(quantity) < 0
                     or type(revenue) is not int or revenue < 0):
                 raise ValueError('cobertura mensal inválida')
             total = db.execute(
-                'SELECT COALESCE(SUM(quantidade),0),COALESCE(SUM(faturamento_centavos),0) '
+                'SELECT CAST(ROUND(COALESCE(SUM(quantidade),0)*1000000) AS INTEGER),COALESCE(SUM(faturamento_centavos),0) '
                 'FROM meta_produto_vistoriador WHERE ano_mes=? AND id_unidade=?', (month, unit)
             ).fetchone()
-            if total != (quantity, revenue) or (quantity == 0 and revenue != 0):
+            if total != (quantity_micros(quantity), revenue) or (quantity == 0 and revenue != 0):
                 raise ValueError('cobertura mensal não reconcilia com as metas')
     if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta_cliente'").fetchone():
         invalid = db.execute("""
@@ -67,7 +77,7 @@ def validate_target_database(db):
         mismatch = db.execute("""
             WITH original AS (
                 SELECT ano_mes,id_unidade,id_servico,id_vistoriador,
-                       quantidade*1000000 q,faturamento_centavos r
+                       CAST(ROUND(quantidade*1000000) AS INTEGER) q,faturamento_centavos r
                 FROM meta_produto_vistoriador
             ), detail AS (
                 SELECT ano_mes,id_unidade,id_servico,id_vistoriador,
